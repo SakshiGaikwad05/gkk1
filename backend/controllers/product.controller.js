@@ -1,5 +1,8 @@
 import Product from '../models/product.model.js';
+import Category from '../models/category.model.js';
 import { AppError, asyncHandler } from '../utils/asyncHandler.js';
+
+const escapeRegex = (s) => String(s).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
 function parseStrArr(val) {
   if (!val) return undefined;
@@ -16,14 +19,25 @@ export const getProducts = asyncHandler(async (req, res) => {
   const {
     category, subcategory, brand, search,
     featured, bestSeller, newArrival, limitedOffer, showOnBanner,
-    status, page, limit,
+    page, limit,
   } = req.query;
 
   const filter = {};
-  if (category) filter.category = category;
+  if (category && category !== 'all') {
+    // Admin-created products store the category *name* ("Vegetable Seeds") while
+    // storefront links use the *slug* ("vegetable-seeds"), so match either.
+    const cat = await Category.findOne({ $or: [{ slug: category }, { name: category }] }).lean();
+    const candidates = [category, cat?.name, cat?.slug].filter(Boolean);
+    // "-" in a slug matches "-" or a space, so "vegetable-seeds" also hits "Vegetable Seeds"
+    const patterns = candidates.map((c) => new RegExp(`^${escapeRegex(c).replace(/-/g, '[-\\s]')}$`, 'i'));
+    // also match subcategory, so links like /category/vegetable-seeds work for
+    // products filed as category "Seeds" / subcategory "Vegetable Seeds"
+    filter.$and = [{ $or: [{ category: { $in: patterns } }, { subcategory: { $in: patterns } }] }];
+  }
   if (subcategory) filter.subcategory = subcategory;
   if (brand) filter.brand = { $regex: brand, $options: 'i' };
-  if (status) filter.status = status;
+  // Public endpoint: never expose draft/hidden products to shoppers
+  filter.status = 'published';
   if (featured === 'true') filter.featured = true;
   if (bestSeller === 'true') filter.bestSeller = true;
   if (newArrival === 'true') filter.newArrival = true;
@@ -71,7 +85,7 @@ export const getProducts = asyncHandler(async (req, res) => {
 });
 
 export const getProductBySlug = asyncHandler(async (req, res) => {
-  const product = await Product.findById(req.params.id).lean();
+  const product = await Product.findOne({ _id: req.params.id, status: 'published' }).lean();
   if (!product) throw new AppError('Product not found.', 404);
   res.json({ success: true, data: { product } });
 });

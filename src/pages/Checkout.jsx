@@ -48,23 +48,13 @@ const Checkout = () => {
     return '';
   };
 
+  // cart prices are display strings like "₹ 3,090" or "₹ 12.5"; keep the decimal point
+  // (the old /[^\d]/ strip turned ₹12.5 into ₹125)
+  const parsePrice = (p) => Number(String(p ?? '').replace(/[^\d.]/g, '')) || 0;
+
   const totalPrice = useMemo(() =>
-    cart.reduce((sum, item) => {
-      const price = parseInt(item.price.replace(/[^\d]/g, ''));
-      return sum + price * item.quantity;
-    }, 0),
+    cart.reduce((sum, item) => sum + parsePrice(item.price) * item.quantity, 0),
   [cart]);
-
-  const toObjectIdLike = (value) => {
-    const hex = String(value)
-      .split('')
-      .map((char) => char.charCodeAt(0).toString(16))
-      .join('')
-      .replace(/[^a-f0-9]/gi, '')
-      .slice(0, 24);
-
-    return (hex + '0'.repeat(24)).slice(0, 24);
-  };
 
   const handlePayment = async () => {
     if (cart.length === 0 || isProcessing) return;
@@ -90,10 +80,10 @@ const Checkout = () => {
     setIsProcessing(true);
 
     try {
+      // send the real product _id; the server looks up the actual price itself
       const items = cart.map((item) => ({
-        productId: toObjectIdLike(item.id),
+        productId: String(item._id || item.id),
         name: item.name,
-        price: parseInt(String(item.price).replace(/[^\d]/g, ''), 10),
         quantity: item.quantity,
       }));
 
@@ -165,6 +155,8 @@ const Checkout = () => {
           contact: user?.phone || '',
         },
         theme: { color: '#2F855A' },
+        // user closed the Razorpay popup without paying: re-enable the button
+        modal: { ondismiss: () => setIsProcessing(false) },
       };
 
       const rzp = new window.Razorpay(options);
@@ -234,7 +226,7 @@ const Checkout = () => {
                       src={item.image} 
                       alt={item.name} 
                       className="w-16 h-16 object-contain bg-white rounded-lg"
-                      onError={(e) => { e.target.src = 'https://via.placeholder.com/64x64?text=No+Image'; }}
+                      onError={(e) => { e.target.src = 'https://placehold.co/64x64?text=No+Image'; }}
                     />
                     <div className="flex-1 flex justify-between items-center">
                       <div>

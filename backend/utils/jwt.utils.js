@@ -24,12 +24,21 @@ export const setRefreshCookie = (res, token) => {
     secure: ENV.NODE_ENV === 'production',
     sameSite: ENV.NODE_ENV === 'production' ? 'none' : 'lax',
     maxAge: SEVEN_DAYS_MS,
-    path: '/api/auth/refresh-token',   // restrict cookie to refresh endpoint
+    // scoped to /api/auth so /logout can also read & revoke it
+    // (with the old /api/auth/refresh-token path, logout never saw the cookie)
+    path: '/api/auth',
   });
 };
 
 export const clearRefreshCookie = (res) => {
-  res.clearCookie('refreshToken', { path: '/api/auth/refresh-token' });
+  const opts = {
+    httpOnly: true,
+    secure: ENV.NODE_ENV === 'production',
+    sameSite: ENV.NODE_ENV === 'production' ? 'none' : 'lax',
+  };
+  res.clearCookie('refreshToken', { ...opts, path: '/api/auth' });
+  // also clear cookies set by older versions with the narrower path
+  res.clearCookie('refreshToken', { ...opts, path: '/api/auth/refresh-token' });
 };
 
 // ─── Issue token pair ─────────────────────────────────────────────────────────

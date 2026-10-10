@@ -3,6 +3,9 @@ import adminApi from '../../utils/adminApi';
 
 const API_BASE = import.meta.env.VITE_API_URL || 'https://gkk1.onrender.com';
 
+// Cloudinary images are already absolute URLs; only legacy /uploads paths need the API host
+const imageUrl = (src) => (!src ? '' : /^https?:\/\//.test(src) ? src : `${API_BASE}${src}`);
+
 const BannerModal = ({ banner, onSave, onClose }) => {
   const [form, setForm] = useState({
     title: banner?.title || '',
@@ -97,7 +100,7 @@ const BannerModal = ({ banner, onSave, onClose }) => {
             <label className="block text-sm font-bold text-gray-700 mb-1">Banner Image *</label>
             {(existingImage || preview) ? (
               <div className="relative w-full h-48 rounded-xl overflow-hidden border border-gray-200 bg-gray-50 mb-2">
-                <img src={preview || `${API_BASE}${existingImage}`} alt="" className="w-full h-full object-cover" />
+                <img src={preview || imageUrl(existingImage)} alt="" className="w-full h-full object-cover" />
                 <button type="button" onClick={() => { setFile(null); if (preview) URL.revokeObjectURL(preview); setPreview(null); setExistingImage(''); }}
                   className="absolute top-2 right-2 w-7 h-7 bg-red-500 text-white rounded-full text-sm flex items-center justify-center hover:bg-red-600">X</button>
               </div>
@@ -222,7 +225,7 @@ const AdminBanners = () => {
             <div key={banner._id} className="bg-white rounded-2xl border border-gray-100 overflow-hidden shadow-sm flex flex-col sm:flex-row">
               <div className="w-full sm:w-48 h-32 bg-gray-50 shrink-0">
                 {banner.image ? (
-                  <img src={`${API_BASE}${banner.image}`} alt={banner.title} className="w-full h-full object-cover" />
+                  <img src={imageUrl(banner.image)} alt={banner.title} className="w-full h-full object-cover" />
                 ) : (
                   <div className="w-full h-full flex items-center justify-center text-gray-300 text-sm">No image</div>
                 )}

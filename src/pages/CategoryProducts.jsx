@@ -1,10 +1,29 @@
 import { useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
-import { ShoppingCart, Heart } from 'lucide-react';
+import { ShoppingCart, Heart, ImageOff } from 'lucide-react';
 import api from '../utils/api';
 import { useCart } from '../context/CartContext';
 import { useWishlist } from '../context/WishlistContext';
-import { initialProducts } from '../data/products';
+
+const ProductImage = ({ product }) => {
+  const [failed, setFailed] = useState(false);
+  const src = product.images?.[0] || product.image;
+  if (!src || failed) {
+    return (
+      <div className="absolute inset-0 flex items-center justify-center">
+        <ImageOff size={32} className="text-gray-300" />
+      </div>
+    );
+  }
+  return (
+    <img
+      src={src}
+      alt={product.name}
+      className="w-full h-full object-contain group-hover:scale-110 transition-transform duration-500"
+      onError={() => setFailed(true)}
+    />
+  );
+};
 
 const formatTitle = (slug) =>
   String(slug || '')
@@ -27,38 +46,13 @@ const CategoryProducts = () => {
       setError('');
       try {
         const res = await api.get('/products', { params: { category } });
-        const apiProducts = res.data?.data?.products || [];
-
-        if (apiProducts.length > 0) {
-          setProducts(apiProducts);
-        } else {
-          const fallbackProducts = initialProducts
-            .filter((p) => p.category === category)
-            .map((p) => ({
-              _id: String(p.id),
-              name: p.name,
-              price: Number(String(p.price).replace(/[^\d]/g, '')) || 0,
-              image: p.image,
-              category: p.category,
-            }));
-
-          setProducts(fallbackProducts);
-        }
+        // no hard-coded fallback: those demo items don't exist in the database,
+        // so they could be added to the cart but never ordered
+        setProducts(res.data?.data?.products || []);
       } catch (err) {
         console.error('Error fetching products:', err);
-        const fallbackProducts = initialProducts
-          .filter((p) => p.category === category)
-          .map((p) => ({
-            _id: String(p.id),
-            name: p.name,
-            price: Number(String(p.price).replace(/[^\d]/g, '')) || 0,
-            image: p.image,
-            category: p.category,
-          }));
-        setProducts(fallbackProducts);
-        if (fallbackProducts.length === 0) {
-          setError(err?.response?.data?.message || 'Unable to load products.');
-        }
+        setProducts([]);
+        setError(err?.response?.data?.message || 'Unable to load products.');
       } finally {
         setLoading(false);
       }
@@ -93,10 +87,11 @@ const CategoryProducts = () => {
       {error && <p className="text-red-600 font-semibold">{error}</p>}
 
       {!loading && !error && (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-8">
+        <div className="grid gap-8" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))' }}>
           {products.map((product) => (
             <div key={product._id} className="bg-white rounded-2xl border border-gray-100 overflow-hidden shadow-sm hover:shadow-xl transition-all group flex flex-col">
-              <div className="relative h-56 bg-white overflow-hidden p-4">
+              <div className="relative w-full aspect-[4/3] bg-gray-50 overflow-hidden">
+                <ProductImage product={product} />
                 <button
                   onClick={() => toggleWishlist({
                     id: product._id,
@@ -111,14 +106,6 @@ const CategoryProducts = () => {
                     className={`transition-colors ${isInWishlist(product._id) ? 'fill-red-500 text-red-500' : 'text-gray-400 group-hover/wishlist:text-red-500'}`}
                   />
                 </button>
-                <img
-                  src={product.images?.[0] || product.image || 'https://via.placeholder.com/400x300?text=No+Image'}
-                  alt={product.name}
-                  className="w-full h-full object-contain group-hover:scale-110 transition-transform duration-500"
-                  onError={(e) => {
-                    e.target.src = 'https://via.placeholder.com/400x300?text=No+Image';
-                  }}
-                />
               </div>
               <div className="p-5 flex flex-col flex-1 border-t border-gray-50">
                 <h3 className="font-bold text-gray-800 text-lg mb-2 line-clamp-2 leading-tight group-hover:text-agri-green transition-colors">
@@ -133,7 +120,7 @@ const CategoryProducts = () => {
                       id: product._id,
                       name: product.name,
                       price: `₹ ${Number(product.price || 0).toLocaleString()}`,
-                      image: product.images?.[0] || product.image || 'https://via.placeholder.com/150?text=No+Image',
+                      image: product.images?.[0] || product.image || '',
                       category: product.category,
                     })}
                     className={`flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl font-bold transition-all ${

@@ -39,6 +39,13 @@ export const errorHandler = (err, _req, res, _next) => {
   if (err.name === 'ValidationError')     ({ statusCode, message } = handleValidationError(err));
   if (err.name === 'JsonWebTokenError')   ({ statusCode, message } = handleJWTError());
   if (err.name === 'TokenExpiredError')   ({ statusCode, message } = handleJWTExpiredError());
+  // multer: "File too large", unexpected field, etc. are client errors, not 500s
+  if (err.name === 'MulterError') {
+    statusCode = 400;
+    message = err.code === 'LIMIT_FILE_SIZE' ? 'Image is too large (max 5 MB).' : err.message;
+  }
+  if (err.message === 'Only jpg, jpeg, png, and webp files are allowed.') statusCode = 400;
+  if (err.message === 'CORS not allowed') statusCode = 403;
 
   // Never leak internal stack traces in production
   if (ENV.NODE_ENV === 'development') {

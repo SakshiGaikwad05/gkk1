@@ -8,7 +8,8 @@ const CartDrawer = ({ isOpen, onClose }) => {
 
   const totalPrice = useMemo(() =>
     cart.reduce((sum, item) => {
-      const price = parseInt(item.price.replace(/[^\d]/g, ''));
+      // keep decimals ("₹ 12.5" must not become 125); tolerate numeric prices too
+      const price = Number(String(item.price ?? '').replace(/[^\d.]/g, '')) || 0;
       return sum + price * item.quantity;
     }, 0),
   [cart]);

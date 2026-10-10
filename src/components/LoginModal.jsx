@@ -19,6 +19,9 @@ const validateForm = (view, formData) => {
     if (view === 'register' && (!name || name.trim().length < 2)) {
         return 'Name must be at least 2 characters.';
     }
+    if (view === 'forgotOtp' && !/^\d{6}$/.test(formData.otp || '')) {
+        return 'Enter the 6-digit code from your email.';
+    }
     if (view === 'forgotOtp' && (!newPassword || newPassword.length < 6)) {
         return 'New password must be at least 6 characters.';
     }
@@ -34,7 +37,7 @@ const validateForm = (view, formData) => {
     return null;
 };
 
-const LoginModal = ({ isOpen, onClose, onLoginSuccess }) => {
+const LoginModal = ({ isOpen, onClose, onLoginSuccess, initialError = '' }) => {
     const { login } = useAuth();
     const [view, setView] = useState('login');
     const [showPassword, setShowPassword] = useState(false);
@@ -59,6 +62,10 @@ const LoginModal = ({ isOpen, onClose, onLoginSuccess }) => {
             document.body.style.overflow = '';
         };
     }, [isOpen, onClose]);
+
+    useEffect(() => {
+        if (isOpen && initialError) setError(initialError);
+    }, [isOpen, initialError]);
 
     useEffect(() => {
         if (!isOpen) {
@@ -106,12 +113,13 @@ const LoginModal = ({ isOpen, onClose, onLoginSuccess }) => {
         try {
             if (view === 'forgot') {
                 await api.post('/auth/forgot-password', { email: formData.email });
-                setSuccessMsg('If an account with that email exists, a password reset link has been sent.');
+                setSuccessMsg('If an account exists, a 6-digit code has been sent to your email.');
                 setSuccess(true);
                 setTimeout(() => {
                     setSuccess(false);
                     setIsLoading(false);
-                    setView('login');
+                    // go to the OTP + new password step (keep the email; it's needed there)
+                    setView('forgotOtp');
                 }, 2000);
                 return;
             }
@@ -167,7 +175,8 @@ const LoginModal = ({ isOpen, onClose, onLoginSuccess }) => {
 
     const handleGoogleLogin = async () => {
         setError('');
-        const googleAuthUrl = `${API_URL}/api/auth/google`;
+        // tell the backend which site to come back to (www vs bare domain vs localhost)
+        const googleAuthUrl = `${API_URL}/api/auth/google?redirect=${encodeURIComponent(window.location.origin)}`;
         window.location.href = googleAuthUrl;
     };
 
@@ -248,7 +257,7 @@ const LoginModal = ({ isOpen, onClose, onLoginSuccess }) => {
 
                                 {view === 'forgot' && (
                                     <p className="text-[12px] text-gray-500 bg-gray-50 border border-gray-200 rounded-lg px-3 py-2">
-                                        We'll send a reset link to your email.
+                                        We'll send a 6-digit code to your email.
                                     </p>
                                 )}
 

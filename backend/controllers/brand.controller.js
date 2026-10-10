@@ -39,6 +39,7 @@ export const adminUpdateBrand = asyncHandler(async (req, res) => {
   const brand = await Brand.findById(req.params.id);
   if (!brand) throw new AppError('Brand not found.', 404);
 
+  const oldName = brand.name;
   if (name !== undefined) {
     if (typeof name !== 'string' || name.trim().length < 1) throw new AppError('Name is required.', 400);
     const dup = await Brand.findOne({ name: name.trim(), _id: { $ne: brand._id } });
@@ -50,6 +51,10 @@ export const adminUpdateBrand = asyncHandler(async (req, res) => {
   if (active !== undefined) brand.active = active === true || active === 'true';
 
   await brand.save();
+  // products store the brand by name; keep them attached after a rename
+  if (brand.name !== oldName) {
+    await Product.updateMany({ brand: oldName }, { $set: { brand: brand.name } });
+  }
   res.json({ success: true, message: 'Brand updated.', data: { brand } });
 });
 

@@ -21,7 +21,8 @@ const sendTokenResponse = async (res, user, statusCode = 200) => {
   try {
     await User.findByIdAndUpdate(
       user._id,
-      { $push: { refreshTokens: refreshToken } },
+      // keep only the 10 most recent sessions so the array can't grow forever
+      { $push: { refreshTokens: { $each: [refreshToken], $slice: -10 } } },
       { new: true }
     );
   } catch (err) {
@@ -202,13 +203,27 @@ export const refreshToken = asyncHandler(async (req, res) => {
 
   const { accessToken, refreshToken: newRefreshToken } = issueTokenPair(user);
 
+  // MongoDB rejects $pull + $push on the same field in one update ("would create a
+  // conflict"), so swap the token with a pipeline $set. Matching on the old token
+  // keeps it single-use: a replayed/rotated token finds nothing.
   const updatedUser = await User.findOneAndUpdate(
     { _id: user._id, refreshTokens: token },
-    {
-      $pull: { refreshTokens: token },
-      $push: { refreshTokens: newRefreshToken },
-    },
-    { new: true, select: '+refreshTokens' }
+    [{
+      $set: {
+        refreshTokens: {
+          $slice: [
+            {
+              $concatArrays: [
+                { $filter: { input: '$refreshTokens', cond: { $ne: ['$$this', token] } } },
+                [newRefreshToken],
+              ],
+            },
+            -10,
+          ],
+        },
+      },
+    }],
+    { new: true }
   );
 
   if (!updatedUser) {
@@ -268,7 +283,7 @@ export const forgotPassword = asyncHandler(async (req, res) => {
     await sendPasswordResetOTPEmail({ to: user.email, name: user.name, otp });
     console.log('[AUTH] Password reset OTP email sent to:', user.email);
   } catch (emailErr) {
-    console.warn('[AUTH] Email failed - OTP shown in console:', otp);
+    console.warn('[AUTH] Password reset email failed for', user.email, '-', emailErr.message);
   }
 
   genericResponse();
@@ -407,9 +422,9 @@ export const setPassword = asyncHandler(async (req, res) => {
   });
 });
 
-export const googleOAuthCallback = asyncHandler(async (req, res) => {
-  console.log('[OAUTH] Callback reached, user:', req.user?.email);
-  
+// Called from the custom passport callback in auth.routes.js (not as Express
+// middleware), so it returns a promise and the caller handles failures.
+export const googleOAuthCallback = async (req, res, clientUrl) => {
   const user = req.user;
   if (!user) {
     console.error('[OAUTH] Callback error: user not found in session');
@@ -422,18 +437,12 @@ export const googleOAuthCallback = asyncHandler(async (req, res) => {
 
   await User.findByIdAndUpdate(
     user._id,
-    { $push: { refreshTokens: refreshToken } },
+    { $push: { refreshTokens: { $each: [refreshToken], $slice: -10 } } },
     { new: true }
   );
 
   setRefreshCookie(res, refreshToken);
 
-  const clientUrl = ENV.NODE_ENV === 'production' && ENV.PRODUCTION_CLIENT_URL
-    ? ENV.PRODUCTION_CLIENT_URL
-    : ENV.CLIENT_URL;
-  
-  const redirectURL = `${clientUrl}/login-success?token=${encodeURIComponent(accessToken)}`;
-  console.log('[OAUTH] Redirecting to:', redirectURL);
-  
-  return res.redirect(redirectURL);
-});
+  console.log('[OAUTH] Google login success for', user.email, '-> redirecting to', clientUrl);
+  return res.redirect(`${clientUrl}/login-success?token=${encodeURIComponent(accessToken)}`);
+};

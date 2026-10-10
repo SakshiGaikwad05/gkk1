@@ -19,10 +19,7 @@ export const AdminAuthProvider = ({ children }) => {
   const isAdminAuthenticated = !!admin;
 
   const adminLogin = useCallback(async (email, password) => {
-    console.log('3. adminLogin received', email, password);
-    console.log('4. POST', '/login', { email, password });
     const res = await adminApi.post('/login', { email, password });
-    console.log('5. response', res);
     const { token, admin: adminData } = res.data.data;
 
     localStorage.setItem(ADMIN_TOKEN_KEY, token);

@@ -41,7 +41,7 @@ const Gallery = () => {
   };
 
   const handleImageError = (e) => {
-    e.target.src = "https://via.placeholder.com/600x400?text=GKK+Gallery+Image";
+    e.target.src = "https://placehold.co/600x400?text=GKK+Gallery+Image";
   };
 
   return (

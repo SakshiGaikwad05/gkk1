@@ -31,6 +31,13 @@ export const createRazorpayOrderService = async ({ orderId, user }) => {
     throw new AppError('You do not have permission to pay for this order.', 403);
   }
 
+  if (order.paymentStatus === 'paid') {
+    throw new AppError('This order has already been paid.', 400);
+  }
+  if (order.orderStatus === 'cancelled') {
+    throw new AppError('This order has been cancelled.', 400);
+  }
+
   const amount = order.amountInPaise || Math.round(Number(order.totalAmount || 0) * 100);
   if (!amount || amount < 0) {
     throw new AppError('Invalid order amount.', 400);
@@ -58,37 +65,52 @@ export const verifyPaymentService = async ({
   razorpay_order_id,
   razorpay_payment_id,
   razorpay_signature,
+  user,
 }) => {
   const order = await Order.findOne({ razorpayOrderId: razorpay_order_id });
   if (!order) throw new AppError('Order not found for this Razorpay order.', 404);
+
+  if (user && String(order.userId) !== String(user._id) && user.role !== 'admin') {
+    throw new AppError('You do not have permission to verify this payment.', 403);
+  }
+
+  // Already settled: don't let a second (possibly forged) call flip a paid order to failed
+  if (order.paymentStatus === 'paid') {
+    return { success: true, order };
+  }
 
   const expectedSignature = crypto
     .createHmac('sha256', ENV.RAZORPAY_KEY_SECRET)
     .update(`${razorpay_order_id}|${razorpay_payment_id}`)
     .digest('hex');
 
+  const signature = String(razorpay_signature);
   const isSignatureValid =
-    expectedSignature.length === razorpay_signature.length &&
+    expectedSignature.length === signature.length &&
     crypto.timingSafeEqual(
       Buffer.from(expectedSignature, 'utf8'),
-      Buffer.from(razorpay_signature, 'utf8')
+      Buffer.from(signature, 'utf8')
     );
 
-  order.razorpayPaymentId = razorpay_payment_id;
-  order.razorpaySignature = razorpay_signature;
+  // An invalid signature proves nothing about the real payment, so leave the
+  // order untouched rather than recording attacker-supplied ids or marking it failed.
+  if (!isSignatureValid) {
+    return { success: false, order };
+  }
 
-  if (isSignatureValid) {
-    order.paymentStatus = 'paid';
-    order.paymentMethod = 'UPI';
+  order.razorpayPaymentId = razorpay_payment_id;
+  order.razorpaySignature = signature;
+  order.paymentStatus = 'paid';
+  order.paymentMethod = 'UPI';
+  if (order.orderStatus === 'placed') {
     order.orderStatus = 'confirmed';
     order.statusHistory.push({ status: 'confirmed' });
-  } else {
-    order.paymentStatus = 'failed';
   }
 
   await order.save();
 
-  if (isSignatureValid && ENV.AUTO_GENERATE_INVOICE !== 'false') {
+  // ENV.AUTO_GENERATE_INVOICE is already a boolean (comparing to 'false' was always true)
+  if (ENV.AUTO_GENERATE_INVOICE) {
     try {
       console.log(`[PAYMENT_SERVICE] Auto-generating invoice for order: ${order._id}`);
       const invoiceResult = await invoiceService.generateAndSendInvoice(order._id);

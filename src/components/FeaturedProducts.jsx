@@ -1,12 +1,30 @@
 import React, { useState, useEffect } from 'react';
-import { ShoppingCart, Star, Heart } from 'lucide-react';
+import { ShoppingCart, Star, Heart, ImageOff } from 'lucide-react';
 import { useLanguage } from '../i18n/LanguageContext';
 import { useCart } from '../context/CartContext';
 import { useWishlist } from '../context/WishlistContext';
 
 const API_BASE = import.meta.env.VITE_API_URL || 'https://gkk1.onrender.com';
 
-const PLACEHOLDER = 'https://via.placeholder.com/400x300?text=No+Image';
+const ProductImage = ({ product }) => {
+  const [failed, setFailed] = useState(false);
+  const src = product.images?.[0] || product.image;
+  if (!src || failed) {
+    return (
+      <div className="absolute inset-0 flex items-center justify-center">
+        <ImageOff size={32} className="text-gray-300" />
+      </div>
+    );
+  }
+  return (
+    <img
+      src={src}
+      alt={product.name}
+      className="w-full h-full object-contain group-hover:scale-105 transition-transform duration-300"
+      onError={() => setFailed(true)}
+    />
+  );
+};
 
 const FeaturedProducts = () => {
   const { t } = useLanguage();
@@ -18,7 +36,7 @@ const FeaturedProducts = () => {
   useEffect(() => {
     const fetchProducts = async () => {
       try {
-        const res = await fetch(`${API_BASE}/api/products?featured=true&status=published&limit=8`);
+        const res = await fetch(`${API_BASE}/api/products?featured=true&status=published&page=1&limit=8`);
         const data = await res.json();
         setProducts(data?.data?.products || []);
       } catch {} finally {
@@ -36,7 +54,7 @@ const FeaturedProducts = () => {
       _id: product._id,
       name: product.name,
       price: `₹ ${Number(product.price || 0).toLocaleString()}`,
-      image: product.images?.[0] || product.image || PLACEHOLDER,
+      image: product.images?.[0] || product.image || '',
       category: product.category,
     });
   };
@@ -57,7 +75,8 @@ const FeaturedProducts = () => {
           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-6">
             {products.map((product) => (
               <div key={product._id} className="bg-white rounded-lg border border-gray-100 overflow-hidden shadow-sm hover:shadow-lg transition-all group flex flex-col">
-                <div className="relative h-56 bg-white overflow-hidden">
+                <div className="relative w-full aspect-[4/3] bg-gray-50 overflow-hidden">
+                  <ProductImage product={product} />
                   {(product.discount > 0 || product.limitedOffer) && (
                     <span className="absolute top-2 left-2 z-10 bg-red-500 text-white text-[10px] font-bold px-2 py-1 rounded">
                       {t('sale')} {product.discount > 0 && `${product.discount}% OFF`}
@@ -73,7 +92,7 @@ const FeaturedProducts = () => {
                       id: product._id,
                       name: product.name,
                       price: `₹ ${Number(product.price || 0).toLocaleString()}`,
-                      image: product.images?.[0] || product.image || PLACEHOLDER,
+                      image: product.images?.[0] || product.image || '',
                     })}
                     className="absolute top-2 right-2 z-10 p-2 bg-white/80 backdrop-blur-sm rounded-full shadow-sm hover:bg-white transition-all group/wishlist"
                   >
@@ -82,12 +101,6 @@ const FeaturedProducts = () => {
                       className={`transition-colors ${isInWishlist(product._id) ? 'fill-red-500 text-red-500' : 'text-gray-400 group-hover/wishlist:text-red-500'}`}
                     />
                   </button>
-                  <img
-                    src={product.images?.[0] || product.image || PLACEHOLDER}
-                    alt={product.name}
-                    className="w-full h-full object-contain group-hover:scale-105 transition-transform duration-300"
-                    onError={(e) => { e.target.src = PLACEHOLDER; }}
-                  />
                 </div>
 
                 <div className="p-4 flex flex-col flex-1 border-t border-gray-50">

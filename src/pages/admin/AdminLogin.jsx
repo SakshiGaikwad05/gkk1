@@ -21,24 +21,24 @@ const AdminLogin = () => {
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
-    console.log('1. submit start', { email, password });
 
     const trimmedEmail = (email || '').trim();
     const trimmedPassword = (password || '').trim();
 
     if (!trimmedEmail || !trimmedPassword) {
-      console.log('6. validation failed', { email, password, trimmedEmail, trimmedPassword });
       setError('Email and password are required.');
       return;
     }
 
     setLoading(true);
-    console.log('2. calling adminLogin', { email: trimmedEmail, password: trimmedPassword });
     try {
       await adminLogin(trimmedEmail, trimmedPassword);
       navigate('/admin');
     } catch (err) {
-      setError(err?.response?.data?.message || 'Login failed. Check your credentials.');
+      setError(
+        err?.response?.data?.message ||
+        (err?.response ? 'Login failed. Check your credentials.' : 'Cannot reach the server. Is the backend running?')
+      );
     } finally {
       setLoading(false);
     }

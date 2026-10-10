@@ -14,7 +14,6 @@ import Invoice from '../models/invoice.model.js';
 export const adminLogin = asyncHandler(async (req, res) => {
   try {
     console.log("========== ADMIN LOGIN ==========");
-    console.log("Request body:", req.body);
 
     const normalizedEmail = (req.body.email || "").trim().toLowerCase();
     const configuredEmail = (ENV.ADMIN_EMAIL || "").trim().toLowerCase();
@@ -33,10 +32,7 @@ export const adminLogin = asyncHandler(async (req, res) => {
 
     if (normalizedEmail !== configuredEmail) {
       console.log("Returning 401 because: email mismatch");
-      throw new AppError(
-        `DEBUG: Email mismatch (received="${normalizedEmail}", expected="${configuredEmail}")`,
-        401
-      );
+      throw new AppError('Invalid email or password.', 401);
     }
 
     if (!ENV.ADMIN_PASSWORD_HASH) {
@@ -52,7 +48,7 @@ export const adminLogin = asyncHandler(async (req, res) => {
 
     if (!passwordMatches) {
       console.log("Returning 401 because: password mismatch");
-      throw new AppError('DEBUG: Password mismatch', 401);
+      throw new AppError('Invalid email or password.', 401);
     }
 
     console.log("Generating admin JWT");
@@ -127,7 +123,8 @@ export const adminGetProducts = asyncHandler(async (req, res) => {
   } else if (expiryFilter === 'expired') {
     filter.expiryDate = { $ne: null, $lt: new Date() };
   } else if (expiryFilter === 'valid') {
-    filter.expiryDate = { $ne: null, $gte: new Date() };
+    // no expiry date, or not yet expired
+    filter.expiryDate = { $not: { $lt: new Date() } };
   }
 
   const searchFilter = [];

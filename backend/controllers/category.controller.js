@@ -40,6 +40,7 @@ export const adminUpdateCategory = asyncHandler(async (req, res) => {
   const category = await Category.findById(req.params.id);
   if (!category) throw new AppError('Category not found.', 404);
 
+  const oldName = category.name;
   if (name !== undefined) {
     if (typeof name !== 'string' || name.trim().length < 1) throw new AppError('Name is required.', 400);
     const dup = await Category.findOne({ name: name.trim(), _id: { $ne: category._id } });
@@ -52,6 +53,10 @@ export const adminUpdateCategory = asyncHandler(async (req, res) => {
   if (order !== undefined) category.order = Number(order);
 
   await category.save();
+  // products store the category by name; without this a rename orphans them
+  if (category.name !== oldName) {
+    await Product.updateMany({ category: oldName }, { $set: { category: category.name } });
+  }
   res.json({ success: true, message: 'Category updated.', data: { category } });
 });
 

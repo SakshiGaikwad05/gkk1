@@ -4,6 +4,9 @@ import heroImage from '../assets/hero.webp';
 
 const API_BASE = import.meta.env.VITE_API_URL || 'https://gkk1.onrender.com';
 
+// Cloudinary images are already absolute URLs; only legacy /uploads paths need the API host
+const imageUrl = (src) => (!src ? '' : /^https?:\/\//.test(src) ? src : `${API_BASE}${src}`);
+
 const HeroSection = () => {
   const { t } = useLanguage();
   const [banners, setBanners] = useState([]);
@@ -41,7 +44,7 @@ const HeroSection = () => {
     return (
       <section className="relative w-full min-h-[500px] md:min-h-[550px] overflow-hidden flex items-center">
         <div className="absolute inset-0 z-0 bg-cover bg-center bg-no-repeat"
-          style={{ backgroundImage: `url(${API_BASE}${b.image})` }} />
+          style={{ backgroundImage: `url(${imageUrl(b.image) || heroImage})` }} />
         <div className="absolute inset-0 z-10 bg-black/40" />
         <div className="absolute inset-0 z-10 bg-gradient-to-r from-black/60 via-black/40 to-transparent" />
         <div className="relative z-20 w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12 md:py-0">

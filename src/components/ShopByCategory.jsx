@@ -1,26 +1,22 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useLanguage } from '../i18n/LanguageContext';
+import api from '../utils/api';
 import './ShopByCategory.css';
 
-import seedsImg from '../assets/seeds.png';
-import fertilizersImg from '../assets/fertilizer.png';
-import pesticidesImg from '../assets/pesticides.png';
-import equipmentImg from '../assets/tools.png';
-import organicImg from '../assets/organic.png';
-import irrigationImg from '../assets/irrigation.png';
-
-const categories = [
-  { name: 'Seeds', slug: 'seeds', image: seedsImg },
-  { name: 'Fertilizers', slug: 'fertilizers', image: fertilizersImg },
-  { name: 'Pesticides', slug: 'pesticides', image: pesticidesImg },
-  { name: 'Farming Equipment', slug: 'farming-equipment', image: equipmentImg },
-  { name: 'Organic', slug: 'organic', image: organicImg },
-  { name: 'Irrigation', slug: 'irrigation', image: irrigationImg },
-];
+const PLACEHOLDER = 'https://placehold.co/200x200?text=Category';
 
 const ShopByCategory = () => {
   const { language } = useLanguage();
+  const [categories, setCategories] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    api.get('/categories')
+      .then((res) => setCategories(res.data?.data?.categories || []))
+      .catch(() => {})
+      .finally(() => setLoading(false));
+  }, []);
 
   return (
     <section className="shop-by-category py-12 bg-white">
@@ -30,25 +26,31 @@ const ShopByCategory = () => {
           {language === 'mar' ? 'श्रेणीनुसार खरेदी करा' : 'Shop by Category'}
         </h2>
 
-        <div className="category-grid">
-          {categories.map((category) => (
-            <Link
-              key={category.slug}
-              to={`/category/${category.slug}`}
-              className="category-card"
-            >
-              <div className="card-image-wrapper">
-                <img
-                  src={category.image}
-                  alt={category.name}
-                  className="card-image"
-                  onError={(e) => { e.target.style.opacity = '0.3'; }}
-                />
-              </div>
-              <span className="card-name">{category.name}</span>
-            </Link>
-          ))}
-        </div>
+        {loading ? (
+          <div className="text-center py-8 text-gray-400">Loading categories...</div>
+        ) : categories.length === 0 ? (
+          <div className="text-center py-8 text-gray-400">No categories available yet.</div>
+        ) : (
+          <div className="category-grid">
+            {categories.map((cat) => (
+              <Link
+                key={cat._id || cat.slug}
+                to={`/category/${cat.slug}`}
+                className="category-card"
+              >
+                <div className="card-image-wrapper">
+                  <img
+                    src={cat.image || PLACEHOLDER}
+                    alt={cat.name}
+                    className="card-image"
+                    onError={(e) => { e.target.style.opacity = '0.3'; }}
+                  />
+                </div>
+                <span className="card-name">{cat.name}</span>
+              </Link>
+            ))}
+          </div>
+        )}
       </div>
     </section>
   );

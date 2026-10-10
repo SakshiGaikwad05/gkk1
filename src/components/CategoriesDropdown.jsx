@@ -1,80 +1,32 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { 
-  Bug, 
-  Leaf, 
-  Droplets, 
-  Zap, 
-  Sun,
+import {
   Search,
   ChevronRight,
   CircleDot
 } from 'lucide-react';
-
-const categories = [
-  {
-    id: 'seeds',
-    name: 'Seeds',
-    icon: Bug,
-    subcategories: [
-      { id: 'vegetable-seeds', name: 'Vegetable Seeds', slug: 'category/vegetable-seeds' },
-      { id: 'fruit-seeds', name: 'Fruit Seeds', slug: 'category/fruit-seeds' },
-      { id: 'flower-seeds', name: 'Flower Seeds', slug: 'category/flower-seeds' },
-      { id: 'herbs', name: 'Herbs', slug: 'category/herbs' },
-    ]
-  },
-  {
-    id: 'crop-nutrition',
-    name: 'Crop Nutrition',
-    icon: Leaf,
-    subcategories: [
-      { id: 'npk', name: 'NPK (Nitrogen, Phosphorus, Potassium)', slug: 'crop-nutrition/npk' },
-      { id: 'micro-fertilizers', name: 'Micro Fertilizers', slug: 'crop-nutrition/micro-fertilizers' },
-    ]
-  },
-  {
-    id: 'equipments',
-    name: 'Equipments',
-    icon: Zap,
-    subcategories: [
-      { id: 'oil', name: 'Oil', slug: 'equipments/oil' },
-      { id: 'yellow-sticky-trap', name: 'Yellow Sticky Trap', slug: 'equipments/yellow-sticky-trap' },
-      { id: 'blue-sticky-trap', name: 'Blue Sticky Trap', slug: 'equipments/blue-sticky-trap' },
-      { id: 'light-trap', name: 'Light Trap', slug: 'equipments/light-trap' },
-      { id: 'fumigation-trap', name: 'Fumigation Trap', slug: 'equipments/fumigation-trap' },
-    ]
-  },
-  {
-    id: 'organic',
-    name: 'Organic',
-    icon: Sun,
-    subcategories: [
-      { id: 'bio-products', name: 'All Bio Products', slug: 'organic/bio-products' },
-    ]
-  },
-];
+import api from '../utils/api';
 
 const CategoriesDropdown = ({ isOpen, onClose, selectedCategory }) => {
   const [searchQuery, setSearchQuery] = useState('');
-  const [expandedCategory, setExpandedCategory] = useState(null);
+  const [categories, setCategories] = useState([]);
+  const [loading, setLoading] = useState(true);
   const dropdownRef = useRef(null);
 
-  const filteredCategories = categories.map(cat => ({
-    ...cat,
-    subcategories: cat.subcategories.filter(sub => 
-      sub.name.toLowerCase().includes(searchQuery.toLowerCase())
-    )
-  })).filter(cat => cat.subcategories.length > 0);
-
-  const activeCategory = selectedCategory === 'all' 
-    ? categories[0]?.id 
-    : selectedCategory || categories[0]?.id;
-
   useEffect(() => {
-    if (selectedCategory && selectedCategory !== 'all') {
-      setExpandedCategory(selectedCategory);
-    }
-  }, [selectedCategory]);
+    api.get('/categories')
+      .then((res) => setCategories(res.data?.data?.categories || []))
+      .catch(() => {})
+      .finally(() => setLoading(false));
+  }, []);
+
+  const filteredCategories = searchQuery
+    ? categories.filter((cat) =>
+        cat.name.toLowerCase().includes(searchQuery.toLowerCase())
+      )
+    : categories;
+
+  const activeCategory = selectedCategory === 'all' ? null : selectedCategory;
 
   useEffect(() => {
     const handleClickOutside = (e) => {
@@ -111,7 +63,7 @@ const CategoriesDropdown = ({ isOpen, onClose, selectedCategory }) => {
   return (
     <>
       <div className="fixed inset-0 bg-black/40 z-40 lg:hidden" onClick={onClose} />
-      
+
       <div
         ref={dropdownRef}
         className="fixed left-0 right-0 top-auto mt-0 bg-white z-[100] shadow-2xl border-t border-gray-100 animate-slideDown lg:fixed lg:top-auto lg:mt-0 lg:left-0 lg:right-0"
@@ -139,84 +91,48 @@ const CategoriesDropdown = ({ isOpen, onClose, selectedCategory }) => {
             </button>
           </div>
 
-          {/* Mobile Accordion */}
-          <div className="lg:hidden">
-            {categories.map((category) => (
-              <div key={category.id} className="border-b border-gray-100">
-                <button
-                  onClick={() => setExpandedCategory(expandedCategory === category.id ? null : category.id)}
-                  className="w-full px-4 py-4 flex items-center justify-between hover:bg-gray-50 transition-colors"
-                >
-                  <div className="flex items-center gap-3">
-                    <category.icon size={20} className="text-agri-green" />
-                    <span className="font-semibold text-gray-800">{category.name}</span>
-                  </div>
-                  <ChevronRight 
-                    size={18} 
-                    className={`text-gray-400 transition-transform ${expandedCategory === category.id ? 'rotate-90' : ''}`} 
-                  />
-                </button>
-                <div className={`overflow-hidden transition-all duration-300 ${expandedCategory === category.id ? 'max-h-[500px]' : 'max-h-0'}`}>
-                  <div className="px-4 pb-4 space-y-2">
-                    {category.subcategories.map((sub) => (
-                      <Link
-                        key={sub.id}
-                        to={`/${sub.slug}`}
-                        onClick={onClose}
-                        className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-agri-green/5 transition-colors text-left"
-                      >
-                        <CircleDot size={12} className="text-green-500" />
-                        <span className="text-sm text-gray-600 font-medium">{sub.name}</span>
-                      </Link>
-                    ))}
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
-
-          {/* Desktop Mega Menu */}
-          <div className="hidden lg:grid gap-0 p-0">
-            {filteredCategories.map((category) => {
-              const Icon = category.icon;
-              return (
-                <div 
-                  key={category.id} 
-                  className={`p-6 border-r border-gray-100 hover:bg-gray-50/50 transition-colors ${category.id === selectedCategory ? 'bg-agri-green/5 border-b-2 border-b-agri-green' : ''}`}
-                >
-                  <div className="flex items-center gap-3 mb-4">
-                    <div className="p-2 bg-agri-green/10 rounded-lg">
-                      <Icon size={20} className="text-agri-green" />
-                    </div>
-                    <h3 className="text-sm font-bold text-gray-800 uppercase tracking-wide">
-                      {category.name}
-                    </h3>
-                  </div>
-                  <ul className="space-y-1">
-                    {category.subcategories.map((sub) => (
-                      <li key={sub.id}>
-                        <Link
-                          to={`/${sub.slug}`}
-                          onClick={onClose}
-                          className="w-full flex items-center gap-2 px-2 py-2 rounded-lg text-left hover:bg-agri-green/10 hover:text-agri-green transition-all group"
-                        >
-                          <span className="w-1.5 h-1.5 bg-gray-300 rounded-full group-hover:bg-agri-green transition-colors" />
-                          <span className="text-sm text-gray-600 group-hover:text-agri-green font-medium">
-                            {sub.name}
-                          </span>
-                        </Link>
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              );
-            })}
-          </div>
-
-          {filteredCategories.length === 0 && (
+          {loading ? (
+            <div className="py-12 text-center text-gray-400">Loading categories...</div>
+          ) : filteredCategories.length === 0 ? (
             <div className="py-12 text-center">
               <p className="text-gray-600 font-medium">No categories found</p>
             </div>
+          ) : (
+            <>
+              {/* Mobile list */}
+              <div className="lg:hidden">
+                {filteredCategories.map((cat) => (
+                  <Link
+                    key={cat._id || cat.slug}
+                    to={`/category/${cat.slug}`}
+                    onClick={onClose}
+                    className="flex items-center gap-3 px-4 py-3 border-b border-gray-100 hover:bg-gray-50 transition-colors"
+                  >
+                    <CircleDot size={12} className="text-green-500 shrink-0" />
+                    <span className="text-sm text-gray-600 font-medium">{cat.name}</span>
+                  </Link>
+                ))}
+              </div>
+
+              {/* Desktop grid */}
+              <div className="hidden lg:grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-0 p-0">
+                {filteredCategories.map((cat) => (
+                  <Link
+                    key={cat._id || cat.slug}
+                    to={`/category/${cat.slug}`}
+                    onClick={onClose}
+                    className={`flex items-center gap-3 p-4 border-r border-gray-100 border-b border-gray-100 hover:bg-gray-50/50 transition-colors ${
+                      activeCategory === cat.slug ? 'bg-agri-green/5 border-b-2 border-b-agri-green' : ''
+                    }`}
+                  >
+                    <CircleDot size={14} className="text-green-500 shrink-0" />
+                    <span className="text-sm font-bold text-gray-700 hover:text-agri-green transition-colors">
+                      {cat.name}
+                    </span>
+                  </Link>
+                ))}
+              </div>
+            </>
           )}
         </div>
       </div>

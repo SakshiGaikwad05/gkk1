@@ -12,6 +12,8 @@ const api = axios.create({
 
 console.log('[api] axios.defaults.baseURL:', api.defaults.baseURL);
 
+let refreshPromise = null;
+
 const setStoredToken = (token) => {
   if (!token) return;
   localStorage.setItem('token', token);
@@ -42,11 +44,17 @@ api.interceptors.response.use(
       originalRequest._retry = true;
 
       try {
-        const refreshResponse = await api.post('/auth/refresh-token');
+        // Share one refresh between concurrent 401s. Refresh tokens are single-use,
+        // so two parallel refreshes would make the second fail and log the user out.
+        if (!refreshPromise) {
+          refreshPromise = api.post('/auth/refresh-token').finally(() => { refreshPromise = null; });
+        }
+        const refreshResponse = await refreshPromise;
         const newToken =
           refreshResponse.data?.token ||
           refreshResponse.data?.data?.token ||
           refreshResponse.data?.data?.accessToken;
+        if (!newToken) throw new Error('Refresh returned no token');
 
         setStoredToken(newToken);
         originalRequest.headers = originalRequest.headers || {};

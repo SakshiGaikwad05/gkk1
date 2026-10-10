@@ -8,20 +8,24 @@ const Dashboard = () => {
 
   useEffect(() => {
     const fetchStats = async () => {
-      try {
-        const [prodRes, catRes, brandRes, orderRes] = await Promise.all([
-          adminApi.get('/products?limit=1'),
-          adminApi.get('/categories'),
-          adminApi.get('/brands'),
-          adminApi.get('/orders'),
-        ]);
-        setStats({
-          products: prodRes.data?.data?.pagination?.total ?? 0,
-          categories: catRes.data?.data?.categories?.length ?? 0,
-          brands: brandRes.data?.data?.brands?.length ?? 0,
-          orders: orderRes.data?.data?.orders?.length ?? 0,
-        });
-      } catch {}
+      // allSettled so one failing endpoint doesn't blank out every card
+      const [prodRes, catRes, brandRes, orderRes] = await Promise.allSettled([
+        // backend only returns `pagination` when BOTH page and limit are sent
+        adminApi.get('/products', { params: { page: 1, limit: 1 } }),
+        adminApi.get('/categories'),
+        adminApi.get('/brands'),
+        adminApi.get('/orders'),
+      ]);
+      const val = (r) => (r.status === 'fulfilled' ? r.value.data?.data : undefined);
+      [prodRes, catRes, brandRes, orderRes].forEach((r) => {
+        if (r.status === 'rejected') console.error('[Dashboard] stats request failed:', r.reason);
+      });
+      setStats({
+        products: val(prodRes)?.pagination?.total ?? val(prodRes)?.products?.length ?? 0,
+        categories: val(catRes)?.categories?.length ?? 0,
+        brands: val(brandRes)?.brands?.length ?? 0,
+        orders: val(orderRes)?.orders?.length ?? 0,
+      });
     };
     fetchStats();
   }, []);

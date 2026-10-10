@@ -48,10 +48,24 @@ const authLimit = rateLimit({
 router.post('/register',      authLimit, registerValidator,   register);
 router.post('/login',         authLimit, loginValidator,      login);
 
-const getClientUrl = () => {
+const getDefaultClientUrl = () => {
   return ENV.NODE_ENV === 'production' && ENV.PRODUCTION_CLIENT_URL
     ? ENV.PRODUCTION_CLIENT_URL
     : ENV.CLIENT_URL;
+};
+
+// Frontends we are willing to send a freshly issued token back to.
+const allowedClientOrigins = () =>
+  [ENV.CLIENT_URL, ENV.PRODUCTION_CLIENT_URL, ENV.FRONTEND_URL]
+    .filter(Boolean)
+    .map((u) => u.replace(/\/+$/, ''));
+
+// The frontend passes its own origin (?redirect=...) so the user lands back on
+// the exact site they started from (www vs bare domain vs localhost).
+// It round-trips through Google in the OAuth `state` param.
+const resolveClientUrl = (candidate) => {
+  const origin = String(candidate || '').replace(/\/+$/, '');
+  return allowedClientOrigins().includes(origin) ? origin : getDefaultClientUrl();
 };
 
 router.get('/google', (req, res, next) => {
@@ -59,39 +73,44 @@ router.get('/google', (req, res, next) => {
     console.log('[OAUTH] Google OAuth not configured - missing credentials');
     return res.status(503).json({ success: false, message: 'Google OAuth not configured.' });
   }
-  console.log('[OAUTH] Initiating Google OAuth flow...');
-  next();
-}, passport.authenticate('google', { scope: ['profile', 'email'] }));
-
-router.get('/google/callback',
+  const clientUrl = resolveClientUrl(req.query.redirect);
   passport.authenticate('google', {
-    session: true,
-    failureRedirect: `${getClientUrl()}/?google_error=auth_failed`,
-    successRedirect: undefined,
-  }),
-  (req, res) => {
-    console.log('[OAUTH] Callback reached');
-    console.log('[OAUTH] Authenticated user:', req.user?.email || 'none');
-    console.log('[OAUTH] Session ID:', req.sessionID);
+    scope: ['profile', 'email'],
+    session: false,
+    prompt: 'select_account',
+    state: Buffer.from(clientUrl).toString('base64url'),
+  })(req, res, next);
+});
 
-    if (!req.user) {
-      console.error('[OAUTH] ERROR: req.user is missing after authenticate!');
-      return res.redirect(`${getClientUrl()}/?google_error=no_user`);
-    }
-
-    console.log('[OAUTH] Google OAuth success for:', req.user.email);
-    googleOAuthCallback(req, res, (err) => {
-      if (err) {
-        console.error('[OAUTH] Callback handler error:', err.message);
-        return res.redirect(`${getClientUrl()}/?google_error=${encodeURIComponent(err.message)}`);
-      }
-      console.log('[OAUTH] Redirect executed for:', req.user.email);
-    });
+router.get('/google/callback', (req, res, next) => {
+  let clientUrl;
+  try {
+    clientUrl = resolveClientUrl(Buffer.from(String(req.query.state || ''), 'base64url').toString());
+  } catch {
+    clientUrl = getDefaultClientUrl();
   }
-);
+  const fail = (reason) => res.redirect(`${clientUrl}/?google_error=${encodeURIComponent(reason)}`);
+
+  // User pressed "Cancel" on Google's consent screen
+  if (req.query.error) return fail('cancelled');
+
+  // Custom callback so every failure (reused/expired code, DB error, ...) sends the
+  // user back to the shop with a message instead of a raw JSON error page.
+  passport.authenticate('google', { session: false }, (err, user) => {
+    if (err || !user) {
+      console.error('[OAUTH] Google callback failed:', err?.message || 'no user');
+      return fail('auth_failed');
+    }
+    req.user = user;
+    googleOAuthCallback(req, res, clientUrl).catch((e) => {
+      console.error('[OAUTH] Token issue failed:', e.message);
+      fail('auth_failed');
+    });
+  })(req, res, next);
+});
 
 router.post('/refresh-token',           refreshToken);
-router.post('/forgot-password',         forgotValidator,      forgotPassword);
+router.post('/forgot-password', authLimit, forgotValidator,      forgotPassword);
 router.post('/verify-otp',    authLimit, verifyOTPValidator,  verifyOTP);
 router.post('/reset-password',          resetPasswordWithOtpValidator, resetPasswordWithOtp);
 router.post('/reset-password/:token',   resetValidator,       resetPassword);

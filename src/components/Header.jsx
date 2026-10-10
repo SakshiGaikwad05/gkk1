@@ -62,6 +62,7 @@ const Header = () => {
   const { wishlist } = useWishlist();
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isLoginModalOpen, setIsLoginModalOpen] = useState(false);
+  const [googleLoginError, setGoogleLoginError] = useState('');
   const [isBrandsDropdownOpen, setIsBrandsDropdownOpen] = useState(false);
   const [isCategoriesDropdownOpen, setIsCategoriesDropdownOpen] = useState(false);
   const [isCartOpen, setIsCartOpen] = useState(false);
@@ -92,6 +93,11 @@ const Header = () => {
     const params = new URLSearchParams(window.location.search);
     const googleError = params.get('google_error');
     if (googleError) {
+      setGoogleLoginError(
+        googleError === 'cancelled'
+          ? 'Google sign-in was cancelled.'
+          : 'Google sign-in failed. Please try again.'
+      );
       setIsLoginModalOpen(true);
       window.history.replaceState({}, '', '/');
     }
@@ -441,7 +447,8 @@ const Header = () => {
 
       <LoginModal
         isOpen={isLoginModalOpen}
-        onClose={() => setIsLoginModalOpen(false)}
+        onClose={() => { setIsLoginModalOpen(false); setGoogleLoginError(''); }}
+        initialError={googleLoginError}
         onLoginSuccess={handleLoginSuccess}
       />
 

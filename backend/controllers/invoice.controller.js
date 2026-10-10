@@ -1,5 +1,31 @@
+import mongoose from 'mongoose';
 import { AppError, asyncHandler } from '../utils/asyncHandler.js';
 import { invoiceService } from '../services/invoice.service.js';
+import Order from '../models/order.model.js';
+import Invoice from '../models/invoice.model.js';
+
+// Invoices contain customer name/phone/address, so a customer may only touch
+// invoices for their own orders. Admins can access everything.
+const isAdmin = (user) => user?.role === 'admin';
+const sameId = (a, b) => String(a?._id || a) === String(b?._id || b);
+
+const assertOrderAccess = async (orderId, user) => {
+  if (!mongoose.isValidObjectId(orderId)) throw new AppError('Order not found.', 404);
+  const order = await Order.findById(orderId).select('userId').lean();
+  if (!order) throw new AppError('Order not found.', 404);
+  if (!isAdmin(user) && !sameId(order.userId, user._id)) {
+    throw new AppError('You do not have permission to access this order.', 403);
+  }
+};
+
+const assertInvoiceAccess = async (invoiceId, user) => {
+  if (!mongoose.isValidObjectId(invoiceId)) throw new AppError('Invoice not found.', 404);
+  const invoice = await Invoice.findById(invoiceId).select('userId').lean();
+  if (!invoice) throw new AppError('Invoice not found.', 404);
+  if (!isAdmin(user) && !sameId(invoice.userId, user._id)) {
+    throw new AppError('You do not have permission to access this invoice.', 403);
+  }
+};
 
 export const createInvoice = asyncHandler(async (req, res) => {
   const { orderId } = req.body;
@@ -7,6 +33,7 @@ export const createInvoice = asyncHandler(async (req, res) => {
   if (!orderId) {
     throw new AppError('orderId is required.', 400);
   }
+  await assertOrderAccess(orderId, req.user);
 
   const result = await invoiceService.generateAndSendInvoice(orderId);
 
@@ -30,6 +57,7 @@ export const generateInvoicePDF = asyncHandler(async (req, res) => {
   if (!orderId) {
     throw new AppError('orderId is required.', 400);
   }
+  await assertOrderAccess(orderId, req.user);
 
   const result = await invoiceService.generateInvoice(orderId);
 
@@ -49,6 +77,7 @@ export const generateInvoicePDF = asyncHandler(async (req, res) => {
 
 export const sendInvoiceWhatsApp = asyncHandler(async (req, res) => {
   const { invoiceId } = req.params;
+  await assertInvoiceAccess(invoiceId, req.user);
 
   const result = await invoiceService.sendInvoiceWhatsApp(invoiceId);
 
@@ -63,6 +92,7 @@ export const sendInvoiceWhatsApp = asyncHandler(async (req, res) => {
 
 export const getInvoiceById = asyncHandler(async (req, res) => {
   const { invoiceId } = req.params;
+  await assertInvoiceAccess(invoiceId, req.user);
 
   const invoice = await invoiceService.getInvoiceById(invoiceId);
 
@@ -79,6 +109,7 @@ export const getInvoiceById = asyncHandler(async (req, res) => {
 
 export const getInvoiceByOrderId = asyncHandler(async (req, res) => {
   const { orderId } = req.params;
+  await assertOrderAccess(orderId, req.user);
 
   const invoice = await invoiceService.getInvoiceByOrderId(orderId);
 

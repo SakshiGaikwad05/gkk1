@@ -1,5 +1,6 @@
 import { useEffect, useState, useCallback, useRef } from 'react';
 import adminApi from '../../utils/adminApi';
+import Toast from '../../components/Toast';
 
 const API_BASE = import.meta.env.VITE_API_URL || 'https://gkk1.onrender.com';
 console.log('[Products.jsx] import.meta.env.VITE_API_URL:', import.meta.env.VITE_API_URL);
@@ -31,7 +32,7 @@ const SECTIONS = [
   { id: 'display', label: 'Homepage Display' },
 ];
 
-const ProductModal = ({ product, onSave, onClose }) => {
+const ProductModal = ({ product, onSave, onClose, showToast = () => {} }) => {
   const [form, setForm] = useState({ ...EMPTY_PRODUCT, ...product });
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
@@ -174,7 +175,9 @@ const ProductModal = ({ product, onSave, onClose }) => {
       }
       onClose();
     } catch (err) {
-      setError(err?.response?.data?.message || 'Failed to save product.');
+      const msg = err?.response?.data?.message || 'Failed to save product.';
+      setError(msg);
+      showToast(msg, 'error');
     } finally {
       setSaving(false);
     }
@@ -347,7 +350,7 @@ const ProductModal = ({ product, onSave, onClose }) => {
                   <div className="flex flex-wrap gap-3">
                     {existingImages.map((imgPath, i) => (
                       <div key={`e-${i}`} className="relative group w-24 h-24 rounded-lg overflow-hidden border border-gray-200 bg-gray-50">
-                        <img src={`${API_BASE}${imgPath}`} alt="" className="w-full h-full object-cover" />
+                        <img src={/^https?:\/\//.test(imgPath) ? imgPath : `${API_BASE}${imgPath}`} alt="" className="w-full h-full object-cover" />
                         <button type="button" onClick={() => removeExistingImage(imgPath)}
                           className="absolute top-0.5 right-0.5 w-5 h-5 bg-red-500 text-white rounded-full text-xs flex items-center justify-center opacity-0 group-hover:opacity-100">&times;</button>
                       </div>
@@ -458,6 +461,11 @@ const AdminProducts = () => {
   const [deletingProduct, setDeletingProduct] = useState(null);
   const [showAddModal, setShowAddModal] = useState(false);
   const [categories, setCategories] = useState([]);
+  const [toast, setToast] = useState(null);
+
+  const showToast = (message, type = 'success') => {
+    setToast({ message, type });
+  };
 
   const loadProducts = useCallback(async () => {
     setLoading(true);
@@ -486,8 +494,10 @@ const AdminProducts = () => {
   const handleSave = (savedProduct) => {
     if (editingProduct) {
       setProducts((prev) => prev.map((p) => (p._id === savedProduct._id ? savedProduct : p)));
+      showToast('Product updated successfully');
     } else {
       setProducts((prev) => [savedProduct, ...prev]);
+      showToast('Product added successfully');
     }
     setEditingProduct(null);
   };
@@ -497,8 +507,9 @@ const AdminProducts = () => {
     try {
       await adminApi.delete(`/products/${deletingProduct._id}`);
       setProducts((prev) => prev.filter((p) => p._id !== deletingProduct._id));
+      showToast('Product deleted');
     } catch (err) {
-      alert(err?.response?.data?.message || 'Failed to delete product.');
+      showToast(err?.response?.data?.message || 'Failed to delete product.', 'error');
     } finally {
       setDeletingProduct(null);
     }
@@ -512,14 +523,17 @@ const AdminProducts = () => {
 
   return (
     <div className="p-8">
+      {toast && (
+        <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />
+      )}
       {editingProduct && (
-        <ProductModal product={editingProduct} onSave={handleSave} onClose={() => setEditingProduct(null)} />
+        <ProductModal product={editingProduct} onSave={handleSave} onClose={() => setEditingProduct(null)} showToast={showToast} />
       )}
       {deletingProduct && (
         <DeleteModal product={deletingProduct} onConfirm={handleDelete} onClose={() => setDeletingProduct(null)} />
       )}
       {showAddModal && (
-        <ProductModal product={null} onSave={(p) => { setProducts((prev) => [p, ...prev]); }} onClose={() => setShowAddModal(false)} />
+        <ProductModal product={null} onSave={(p) => { setProducts((prev) => [p, ...prev]); showToast('Product added successfully'); }} onClose={() => setShowAddModal(false)} showToast={showToast} />
       )}
 
       <div className="flex items-center justify-between mb-6">
@@ -572,7 +586,7 @@ const AdminProducts = () => {
 
       {!loading && !error && products.length === 0 && (
         <div className="bg-white border border-gray-100 rounded-2xl p-6 text-gray-600">
-          {search || categoryFilter || statusFilter
+          {search || categoryFilter || statusFilter || expiryFilter
             ? 'No products match the current filters.'
             : 'No products found. Add your first product!'}
         </div>
@@ -603,9 +617,17 @@ const AdminProducts = () => {
                       <tr key={product._id} className="hover:bg-gray-50 transition-colors">
                         <td className="px-4 py-3">
                           <div className="flex items-center gap-3">
-                            <img src={product.images?.[0] || product.image || 'https://via.placeholder.com/40'} alt={product.name}
-                              className="w-10 h-10 object-contain rounded-lg bg-gray-50"
-                              onError={(e) => { e.target.src = 'https://via.placeholder.com/40'; }} />
+                            <div className="w-10 h-10 rounded-lg bg-gray-50 flex items-center justify-center shrink-0">
+                              {product.images?.[0] || product.image ? (
+                                <img src={product.images?.[0] || product.image} alt={product.name}
+                                  className="w-full h-full object-contain rounded-lg"
+                                  onError={(e) => { e.target.style.display = 'none'; }} />
+                              ) : (
+                                <svg className="w-4 h-4 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M2.25 15.75l5.159-5.159a2.25 2.25 0 013.182 0l5.159 5.159m-1.5-1.5l1.409-1.409a2.25 2.25 0 013.182 0l2.909 2.909M3.75 21h16.5A2.25 2.25 0 0022.5 18.75V5.25A2.25 2.25 0 0020.25 3H3.75A2.25 2.25 0 001.5 5.25v13.5A2.25 2.25 0 003.75 21z" />
+                                </svg>
+                              )}
+                            </div>
                             <div className="min-w-0">
                               <p className="font-bold text-gray-900 truncate max-w-[200px]">{product.name}</p>
                               {product.shortDescription && (
