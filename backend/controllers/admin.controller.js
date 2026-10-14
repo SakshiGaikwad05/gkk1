@@ -129,11 +129,9 @@ export const adminGetProducts = asyncHandler(async (req, res) => {
 
   const searchFilter = [];
   if (search) {
-    searchFilter.push(
-      { name: { $regex: search, $options: 'i' } },
-      { description: { $regex: search, $options: 'i' } },
-      { brand: { $regex: search, $options: 'i' } },
-    );
+    // escaped so "(" etc. in the admin search box doesn't cause a 500
+    const re = new RegExp(String(search).trim().slice(0, 100).replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i');
+    searchFilter.push({ name: re }, { description: re }, { brand: re }, { category: re });
   }
 
   if (searchFilter.length > 0) {

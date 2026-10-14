@@ -4,7 +4,7 @@ import { useLanguage } from '../i18n/LanguageContext';
 import { useAuth } from '../contexts/AuthContext';
 import { useCart } from '../context/CartContext';
 import { useWishlist } from '../context/WishlistContext';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate, useLocation } from 'react-router-dom';
 import LoginModal from './LoginModal';
 import BrandsDropdown from './BrandsDropdown';
 import CategoriesDropdown from './CategoriesDropdown';
@@ -69,8 +69,27 @@ const Header = () => {
   const [isWishlistOpen, setIsWishlistOpen] = useState(false);
   const [selectedCategory, setSelectedCategory] = useState(null);
   const [activeBrand, setActiveBrand] = useState(null);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [isMobileSearchOpen, setIsMobileSearchOpen] = useState(false);
+  const navigate = useNavigate();
+  const location = useLocation();
 
   const brandsDropdownRef = useRef(null);
+
+  // keep the box in sync with the results page (e.g. after back/forward)
+  useEffect(() => {
+    if (location.pathname === '/search') {
+      setSearchQuery(new URLSearchParams(location.search).get('q') || '');
+    }
+  }, [location.pathname, location.search]);
+
+  const handleSearch = (e) => {
+    e.preventDefault();
+    const q = searchQuery.trim();
+    if (!q) return;
+    setIsMobileSearchOpen(false);
+    navigate(`/search?q=${encodeURIComponent(q)}`);
+  };
 
   useEffect(() => {
     const path = window.location.pathname;
@@ -158,16 +177,19 @@ const Header = () => {
 
         {/* Search Bar */}
         <div className="flex-1 max-w-2xl mx-1 md:mx-6 hidden sm:block">
-          <div className="relative flex items-center w-full h-10 md:h-11 rounded-md border border-gray-300 bg-gray-50 overflow-hidden focus-within:border-agri-green focus-within:ring-1 focus-within:ring-agri-green transition-all shadow-inner">
+          <form onSubmit={handleSearch} role="search" className="relative flex items-center w-full h-10 md:h-11 rounded-md border border-gray-300 bg-gray-50 overflow-hidden focus-within:border-agri-green focus-within:ring-1 focus-within:ring-agri-green transition-all shadow-inner">
             <input
-              type="text"
+              type="search"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
               placeholder={t('search_placeholder')}
+              aria-label="Search products"
               className="w-full h-full px-4 outline-none bg-transparent text-sm placeholder:text-gray-400"
             />
-            <button className="h-full px-4 md:px-5 bg-agri-orange text-white hover:bg-orange-500 transition-colors flex items-center justify-center">
+            <button type="submit" aria-label="Search" className="h-full px-4 md:px-5 bg-agri-orange text-white hover:bg-orange-500 transition-colors flex items-center justify-center">
               <Search size={18} />
             </button>
-          </div>
+          </form>
         </div>
 
         {/* Right Icons */}
@@ -184,7 +206,7 @@ const Header = () => {
           </div>
 
           {/* Mobile Search */}
-          <button className="sm:hidden p-2 text-gray-600 hover:text-agri-green hover:bg-agri-green/10 rounded-full transition-all duration-300 group">
+          <button type="button" aria-label="Search" onClick={() => setIsMobileSearchOpen((o) => !o)} className="sm:hidden p-2 text-gray-600 hover:text-agri-green hover:bg-agri-green/10 rounded-full transition-all duration-300 group">
             <Search size={22} className="group-hover:scale-110 transition-transform" />
           </button>
 
@@ -312,6 +334,24 @@ const Header = () => {
           </div>
         </div>
       </div>
+
+      {/* Mobile Search (toggled by the search icon) */}
+      {isMobileSearchOpen && (
+        <form onSubmit={handleSearch} role="search" className="sm:hidden flex items-center gap-2 px-4 pb-3">
+          <input
+            type="search"
+            autoFocus
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            placeholder={t('search_placeholder')}
+            aria-label="Search products"
+            className="flex-1 h-10 px-3 rounded-md border border-gray-300 bg-gray-50 text-sm outline-none focus:border-agri-green focus:ring-1 focus:ring-agri-green placeholder:text-gray-400"
+          />
+          <button type="submit" aria-label="Search" className="h-10 px-4 rounded-md bg-agri-orange text-white hover:bg-orange-500 transition-colors flex items-center justify-center">
+            <Search size={18} />
+          </button>
+        </form>
+      )}
 
       <Navbar />
 

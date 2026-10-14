@@ -43,12 +43,17 @@ export const getProducts = asyncHandler(async (req, res) => {
   if (newArrival === 'true') filter.newArrival = true;
   if (limitedOffer === 'true') filter.limitedOffer = true;
   if (showOnBanner === 'true') filter.showOnBanner = true;
-  if (search) {
-    filter.$or = [
-      { name: { $regex: search, $options: 'i' } },
-      { description: { $regex: search, $options: 'i' } },
-      { brand: { $regex: search, $options: 'i' } },
-
+  if (search && String(search).trim()) {
+    // escape user text so "(" or "*" can't break (or slow down) the regex,
+    // and require every word to match somewhere: "neem oil" finds "Organic Neem Oil"
+    const words = String(search).trim().slice(0, 100).split(/\s+/).slice(0, 8);
+    const fields = ['name', 'brand', 'category', 'subcategory', 'shortDescription', 'description'];
+    filter.$and = [
+      ...(filter.$and || []),
+      ...words.map((w) => {
+        const re = new RegExp(escapeRegex(w), 'i');
+        return { $or: fields.map((f) => ({ [f]: re })) };
+      }),
     ];
   }
 

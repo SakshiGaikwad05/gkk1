@@ -52,8 +52,8 @@ router.delete('/products/:id', authenticateAdmin, adminDeleteProduct);
 
 // Categories
 router.get('/categories', authenticateAdmin, adminGetCategories);
-router.post('/categories', authenticateAdmin, adminCreateCategory);
-router.put('/categories/:id', authenticateAdmin, adminUpdateCategory);
+router.post('/categories', authenticateAdmin, uploadProductImages.single('image'), adminCreateCategory);
+router.put('/categories/:id', authenticateAdmin, uploadProductImages.single('image'), adminUpdateCategory);
 router.delete('/categories/:id', authenticateAdmin, adminDeleteCategory);
 
 // Brands

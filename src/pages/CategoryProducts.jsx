@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Link, useParams } from 'react-router-dom';
+import { Link, useParams, useSearchParams } from 'react-router-dom';
 import { ShoppingCart, Heart, ImageOff } from 'lucide-react';
 import api from '../utils/api';
 import { useCart } from '../context/CartContext';
@@ -32,8 +32,12 @@ const formatTitle = (slug) =>
     .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
     .join(' ');
 
+// Also serves /search?q=... (no :category param) for the header search bar.
 const CategoryProducts = () => {
   const { category } = useParams();
+  const [searchParams] = useSearchParams();
+  const query = category ? '' : (searchParams.get('q') || '').trim();
+  const isSearch = !category;
   const { addToCart, cart } = useCart();
   const { toggleWishlist, isInWishlist } = useWishlist();
   const [products, setProducts] = useState([]);
@@ -44,8 +48,14 @@ const CategoryProducts = () => {
     const loadProducts = async () => {
       setLoading(true);
       setError('');
+      if (isSearch && !query) {
+        setProducts([]);
+        setLoading(false);
+        return;
+      }
       try {
-        const res = await api.get('/products', { params: { category } });
+        const params = isSearch ? { search: query } : { category };
+        const res = await api.get('/products', { params });
         // no hard-coded fallback: those demo items don't exist in the database,
         // so they could be added to the cart but never ordered
         setProducts(res.data?.data?.products || []);
@@ -59,7 +69,7 @@ const CategoryProducts = () => {
     };
 
     loadProducts();
-  }, [category]);
+  }, [category, isSearch, query]);
 
   const isInCart = (id) => cart.some((item) => String(item.id) === String(id));
 
@@ -76,10 +86,14 @@ const CategoryProducts = () => {
       <div className="mb-10">
         <h1 className="text-4xl font-extrabold text-gray-900 capitalize tracking-tight flex items-center gap-3">
           <span className="w-2 h-10 bg-agri-green rounded-full" />
-          {formatTitle(category)}
+          {isSearch ? 'Search results' : formatTitle(category)}
         </h1>
         <p className="text-gray-500 mt-2 font-medium">
-          Browse our premium range of {formatTitle(category)}
+          {isSearch
+            ? (query
+                ? `${loading ? 'Searching' : `${products.length} result${products.length === 1 ? '' : 's'}`} for "${query}"`
+                : 'Type something in the search bar to find products.')
+            : `Browse our premium range of ${formatTitle(category)}`}
         </p>
       </div>
 
@@ -140,7 +154,11 @@ const CategoryProducts = () => {
           {products.length === 0 && (
             <div className="col-span-full text-center py-24 bg-white rounded-3xl border-2 border-dashed border-gray-200">
               <h3 className="text-xl font-bold text-gray-800 mb-2">No products found</h3>
-              <p className="text-gray-500">No products are available in this category yet.</p>
+              <p className="text-gray-500">
+                {isSearch
+                  ? 'Try a different word, e.g. seeds, urea, sprayer or a brand name.'
+                  : 'No products are available in this category yet.'}
+              </p>
             </div>
           )}
         </div>

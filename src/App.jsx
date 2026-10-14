@@ -65,6 +65,7 @@ function App() {
                       <Route path="/blog/:id" element={<BlogDetail />} />
                       <Route path="/schemes" element={<GovernmentSchemes />} />
                       <Route path="/category/:category" element={<CategoryProducts />} />
+                      <Route path="/search" element={<CategoryProducts />} />
                       <Route path="/checkout" element={<Checkout />} />
                       <Route path="/login-success" element={<LoginSuccess />} />
                       <Route path="/my-orders" element={<MyOrders />} />

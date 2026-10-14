@@ -29,6 +29,7 @@ export const adminCreateCategory = asyncHandler(async (req, res) => {
   const category = await Category.create({
     name: name.trim(),
     description: description ? String(description).trim() : '',
+    image: req.file ? req.file.path : '', // Cloudinary URL
     active: active === true || active === 'true',
     order: order != null ? Number(order) : 0,
   });
@@ -51,6 +52,8 @@ export const adminUpdateCategory = asyncHandler(async (req, res) => {
   if (description !== undefined) category.description = String(description).trim();
   if (active !== undefined) category.active = active === true || active === 'true';
   if (order !== undefined) category.order = Number(order);
+  if (req.body.removeImage === 'true' || req.body.removeImage === true) category.image = '';
+  if (req.file) category.image = req.file.path; // Cloudinary URL
 
   await category.save();
   // products store the category by name; without this a rename orphans them

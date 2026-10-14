@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useLanguage } from '../i18n/LanguageContext';
 import api from '../utils/api';
+import { getCategoryImage } from '../utils/categoryImages';
 import './ShopByCategory.css';
 
 const PLACEHOLDER = 'https://placehold.co/200x200?text=Category';
@@ -40,8 +41,9 @@ const ShopByCategory = () => {
               >
                 <div className="card-image-wrapper">
                   <img
-                    src={cat.image || PLACEHOLDER}
+                    src={getCategoryImage(cat) || PLACEHOLDER}
                     alt={cat.name}
+                    loading="lazy"
                     className="card-image"
                     onError={(e) => { e.target.style.opacity = '0.3'; }}
                   />

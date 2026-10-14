@@ -1,5 +1,6 @@
 import { useEffect, useState, useCallback } from 'react';
 import adminApi from '../../utils/adminApi';
+import { getCategoryImage } from '../../utils/categoryImages';
 
 const CategoryModal = ({ category, onSave, onClose }) => {
   const [form, setForm] = useState({
@@ -10,6 +11,9 @@ const CategoryModal = ({ category, onSave, onClose }) => {
   });
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
+  const [imageFile, setImageFile] = useState(null);
+  const [preview, setPreview] = useState('');
+  const [removeImage, setRemoveImage] = useState(false);
   const isEditing = Boolean(category?._id);
 
   useEffect(() => {
@@ -17,16 +21,47 @@ const CategoryModal = ({ category, onSave, onClose }) => {
     return () => { document.body.style.overflow = ''; };
   }, []);
 
+  useEffect(() => () => { if (preview) URL.revokeObjectURL(preview); }, [preview]);
+
+  const handleImage = (e) => {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file) return;
+    if (!['image/jpeg', 'image/jpg', 'image/png', 'image/webp'].includes(file.type)) {
+      setError('Only JPG, PNG or WebP images are allowed.'); return;
+    }
+    if (file.size > 5 * 1024 * 1024) { setError('Image must be 5 MB or smaller.'); return; }
+    setImageFile(file);
+    setPreview(URL.createObjectURL(file));
+    setRemoveImage(false);
+    setError('');
+  };
+
+  // what the tile will show: new upload > uploaded image > built-in picture
+  const shownImage = preview
+    || getCategoryImage({ ...category, name: form.name, image: removeImage ? '' : category?.image });
+  const hasUploadedImage = Boolean(category?.image) && !removeImage && !preview;
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!form.name.trim()) { setError('Name is required.'); return; }
     setSaving(true);
     try {
+      // multipart so the image can be uploaded along with the fields
+      const fd = new FormData();
+      fd.append('name', form.name.trim());
+      fd.append('description', form.description || '');
+      fd.append('active', form.active ? 'true' : 'false');
+      fd.append('order', String(Number(form.order) || 0));
+      if (imageFile) fd.append('image', imageFile);
+      if (removeImage) fd.append('removeImage', 'true');
+      const config = { headers: { 'Content-Type': 'multipart/form-data' } };
+
       if (isEditing) {
-        const res = await adminApi.put(`/categories/${category._id}`, form);
+        const res = await adminApi.put(`/categories/${category._id}`, fd, config);
         onSave(res.data?.data?.category);
       } else {
-        const res = await adminApi.post('/categories', form);
+        const res = await adminApi.post('/categories', fd, config);
         onSave(res.data?.data?.category);
       }
       onClose();
@@ -50,6 +85,29 @@ const CategoryModal = ({ category, onSave, onClose }) => {
             <label className="block text-sm font-bold text-gray-700 mb-1">Name *</label>
             <input type="text" value={form.name} onChange={(e) => setForm((p) => ({ ...p, name: e.target.value }))}
               className="w-full px-4 py-2.5 text-sm bg-gray-50 border border-gray-300 rounded-lg focus:ring-2 focus:ring-agri-green/25 focus:border-agri-green outline-none" />
+          </div>
+          <div>
+            <label className="block text-sm font-bold text-gray-700 mb-1">Image</label>
+            <div className="flex items-center gap-4">
+              <div className="w-16 h-16 rounded-full overflow-hidden border-2 border-gray-200 bg-gray-50 shrink-0 flex items-center justify-center">
+                {shownImage
+                  ? <img src={shownImage} alt="" className="w-full h-full object-cover" />
+                  : <span className="text-[10px] text-gray-400">No image</span>}
+              </div>
+              <div className="flex flex-col gap-1.5 text-sm">
+                <label className="cursor-pointer font-bold text-agri-green hover:underline">
+                  {preview || hasUploadedImage ? 'Change image' : 'Upload image'}
+                  <input type="file" accept="image/jpeg,image/jpg,image/png,image/webp" onChange={handleImage} className="hidden" />
+                </label>
+                {(preview || hasUploadedImage) && (
+                  <button type="button" onClick={() => { setImageFile(null); setPreview(''); setRemoveImage(Boolean(category?.image)); }}
+                    className="text-left text-xs font-bold text-red-500 hover:underline">Remove</button>
+                )}
+                {!preview && !hasUploadedImage && shownImage && (
+                  <span className="text-xs text-gray-400">Using built-in picture</span>
+                )}
+              </div>
+            </div>
           </div>
           <div>
             <label className="block text-sm font-bold text-gray-700 mb-1">Description</label>
@@ -116,7 +174,7 @@ const AdminCategories = () => {
 
   return (
     <div className="p-8">
-      {editing && <CategoryModal category={editing} onSave={(c) => { setCategories((prev) => prev.map((x) => x._id === c._id ? c : x)); setEditing(null); }} onClose={() => setEditing(null)} />}
+      {editing && <CategoryModal category={editing} onSave={(c) => { setCategories((prev) => prev.map((x) => x._id === c._id ? { ...x, ...c } : x)); setEditing(null); }} onClose={() => setEditing(null)} />}
       {showAdd && <CategoryModal category={null} onSave={(c) => { setCategories((prev) => [...prev, c]); }} onClose={() => setShowAdd(false)} />}
 
       <div className="flex items-center justify-between mb-6">
@@ -151,7 +209,14 @@ const AdminCategories = () => {
             <tbody className="divide-y divide-gray-100">
               {categories.map((cat) => (
                 <tr key={cat._id} className="hover:bg-gray-50">
-                  <td className="px-4 py-3 font-bold text-gray-900">{cat.name}</td>
+                  <td className="px-4 py-3 font-bold text-gray-900">
+                    <div className="flex items-center gap-3">
+                      <div className="w-9 h-9 rounded-full overflow-hidden bg-gray-100 shrink-0">
+                        {getCategoryImage(cat) && <img src={getCategoryImage(cat)} alt="" className="w-full h-full object-cover" />}
+                      </div>
+                      {cat.name}
+                    </div>
+                  </td>
                   <td className="px-4 py-3 text-gray-500 text-xs max-w-[200px] truncate">{cat.description || '\u2014'}</td>
                   <td className="px-4 py-3 text-center"><span className="font-bold text-gray-700">{cat.productCount ?? 0}</span></td>
                   <td className="px-4 py-3 text-center text-gray-500">{cat.order}</td>
